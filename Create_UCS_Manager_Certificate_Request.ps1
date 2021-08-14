@@ -93,14 +93,7 @@ If($MENUCHOICE -eq 0)
 	Write-Host "Creating CSR CSV Answer File was Selected"
 	$EXPORT = @()
 	$TEMPLIST = "" | Select Email,Country,Locality,OrgName,OrgUnit,State
-	<#
-	$EMAIL = "stbu-platops@cisco.com"		#Example me@me.com
-	$COUNTRY = "US"							#Country
-	$LOCALITY = "San Jose"					#City
-	$ORGNAME = "Cisco Systems" 				#Company
-	$ORGUNIT = "CES Platops"				#Department
-	$STATE = "CA"							#State
-	#>
+	
 	$TEMPLIST.Email = Read-Host "Please Provide the team email address
 	Example: stbu-platops@cisco.com
 	"
