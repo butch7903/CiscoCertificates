@@ -23,18 +23,6 @@
 		
 #>
 
-##Variables to Fill Out
-$UCSMVIPFQDN = "ham-ucs-1.hamker.local" #FQDN name for your UCSM VIP #Example ham-ucs-1.hamker.local
-$UCSMVIPIP = "192.168.1.100" 			#Example 192.168.1.100
-$UCSMAIP = "192.168.1.101" 				#Example 10.27.1.12
-$UCSMBIP = "192.168.1.102" 				#Example 10.27.1.12
-$EMAIL = "stbu-platops@cisco.com"		#Example me@me.com
-$COUNTRY = "US"							#Country
-$LOCALITY = "San Jose"					#City
-$ORGNAME = "Cisco Systems" 				#Company
-$ORGUNIT = "CES Platops"				#Department
-$STATE = "CA"							#State
-
 ##Check if Modules are installed, if so load them, else install them
 if (Get-InstalledModule -Name Cisco.UCSManager -MinimumVersion 3.0.1.2) {
 	Write-Host "-----------------------------------------------------------------------------------------------------------------------"
@@ -81,6 +69,107 @@ $pwd = pwd
 ##Setting CSV File Location 
 $CSVFILELOCATION = $pwd.path
 
+##Variables to Fill Out
+$UCSMVIPFQDN = Read-Host "Please provide the UCS Manager FQDN
+Example: ham-ucs-site-1.hamker.local
+"
+
+##Specify UCS Creds
+$MyCredential = Get-Credential -Message "Please Provide the admin password for $UCSMVIPFQDN"
+
+##Menu 
+$MENUOPTIONS = "Create CSR Answer File","Reuse CSR Answer File"
+$countCL = 0   
+foreach($oC in $MENUOPTIONS)
+{   
+	Write-Output "[$countCL] $oc" 
+	$countCL = $countCL+1  
+}
+Write-Host " "   
+$MENUCHOICE = Read-Host "Please select an Option to Continue"
+
+If($MENUCHOICE -eq 0)
+{
+	Write-Host "Creating CSR CSV Answer File was Selected"
+	$EXPORT = @()
+	$TEMPLIST = "" | Select Email,Country,Locality,OrgName,OrgUnit,State
+	<#
+	$EMAIL = "stbu-platops@cisco.com"		#Example me@me.com
+	$COUNTRY = "US"							#Country
+	$LOCALITY = "San Jose"					#City
+	$ORGNAME = "Cisco Systems" 				#Company
+	$ORGUNIT = "CES Platops"				#Department
+	$STATE = "CA"							#State
+	#>
+	$TEMPLIST.Email = Read-Host "Please Provide the team email address
+	Example: stbu-platops@cisco.com
+	"
+	$EMAIL = $TEMPLIST.Email
+	$TEMPLIST.Country = Read-Host "Please Provide the 2 Letter Country Code
+	Example: US
+	"
+	$COUNTRY = $TEMPLIST.Country
+	$TEMPLIST.Locality = Read-Host "Please Provide the local city or site name
+	Example: San Jose
+	"
+	$LOCALITY = $TEMPLIST.Locality
+	$TEMPLIST.OrgName = Read-Host "Please Provide the Company Name
+	Example: Cisco Systems
+	"
+	$ORGNAME = $TEMPLIST.OrgName
+	$TEMPLIST.OrgUnit = Read-Host "Please Provide the Department Name
+	Example: CES Platops
+	"
+	$ORGUNIT = $TEMPLIST.OrgUnit
+	$TEMPLIST.State = Read-Host "Please Provide the State 2 letter code
+	Example: CA
+	"
+	$STATE = $TEMPLIST.State
+	#List Info
+	CLS
+	Write-Host "Please Verify the Output Info"
+	Write-Output $TEMPLIST
+	Write-Host "Press Enter to Continue"
+	PAUSE
+	
+	$EXPORT += $TEMPLIST
+	
+	##Specify Export File Info
+	$EXPORTFILENAME = "CSR_Answer_File.csv"
+	#Create Export Folder
+	$ExportFolder = $pwd.path+"\Export"
+	If (Test-Path $ExportFolder){
+		Write-Host "Export Directory Created. Continuing..."
+	}Else{
+		New-Item $ExportFolder -type directory
+	}
+	#Specify Log File
+	$EXPORTFILE = $pwd.path+"\Export\"+$EXPORTFILENAME
+	
+	##Export CSV
+	$EXPORT | Export-CSV -NoTypeInformation -Path $EXPORTFILE
+}
+If($MENUCHOICE -eq 1)
+{
+	CLS
+	Write-Host "Import CSR Answer file Selected"
+	$IMPORTFILENAME = "CSR_Answer_File.csv"
+	$ExportFolder = $pwd.path+"\Export"
+	$CSVIMPORTFILE = $ExportFolder+"\"+$IMPORTFILENAME
+	$CSV = Import-CSV -Path $CSVIMPORTFILE
+	Write-Host "CSV Contains Below info"
+	Write-Output $CSV
+	Write-Host "Press Enter to Continue"
+	PAUSE
+	$EMAIL = $CSV.Email
+	$COUNTRY = $CSV.Country
+	$LOCALITY = $CSV.LOCALITY
+	$ORGNAME = $CSV.OrgName
+	$ORGUNIT = $CSV.OrgUnit
+	$STATE = $CSV.State
+}
+
+
 ##Get Date Info for Logging
 $LOGDATE = Get-Date -format "MMM-dd-yyyy_HH-mm"
 ##Specify Log File Info
@@ -102,9 +191,6 @@ Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
 Write-Host "Script Logging Started"
 Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
 Write-Host "-----------------------------------------------------------------------------------------------------------------------"
-
-#Specify UCS Creds
-$MyCredential = Get-Credential -Message "Please Provide the admin password for $UCSMVIPFQDN"
 
 CLS
 ##Disconnect from any open UCS Sessions
@@ -131,6 +217,27 @@ Write-Host "Connected to UCS VIP $UCSMVIPFQDN"
 Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
 Write-Host "-----------------------------------------------------------------------------------------------------------------------"
 
+##Get UCS IP Info
+Write-Host "-----------------------------------------------------------------------------------------------------------------------"
+Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
+Write-Host "Getting UCS FI IP Info"
+$FIINFO = Get-UcsStatus
+$UCSMVIPIP = $FIINFO.VirtualIpv4Address
+$UCSMAIP = $FIINFO.FiAOobIpv4Address
+$UCSMBIP = $FIINFO.FiBOobIpv4Address
+Write-Host "Completed getting UCS FI IP Info"
+Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
+Write-Host "-----------------------------------------------------------------------------------------------------------------------"
+
+##Clean Up older versions of the UCS Key Ring
+Write-Host "-----------------------------------------------------------------------------------------------------------------------"
+Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
+Write-Host "Removing older versions of the internal_ca UCS Key Ring"
+Get-UcsKeyRing -Name "internal_ca" | Remove-UcsKeyRing -Force
+Write-Host "Completed removing older versions of the internal_ca UCS Key Ring"
+Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
+Write-Host "-----------------------------------------------------------------------------------------------------------------------"
+
 ##Create new UCS Key Ring and Generate CSR
 Write-Host "-----------------------------------------------------------------------------------------------------------------------"
 Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
@@ -147,9 +254,29 @@ Write-Host "--------------------------------------------------------------------
 Write-Host "-----------------------------------------------------------------------------------------------------------------------"
 Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
 Write-Host "Exporting CSR to File for use with a Certificate Authority"
+DO{
+#Start-Sleep -Seconds 3
 $REQ = (Get-UcsKeyRing -Name "internal_ca"| Get-UcsCertRequest).Req
-$REQ | Out-File -Path ./"$UCSMVIPFQDN.csr"
+}Until($REQ.length -gt 5)
+Write-Host " "
+$REQ
+Write-Host " "
+##Specify Log File Info
+$CSRFILENAME =  $UCSMVIPFQDN + ".csr"
+#Create Log Folder
+$CSRFOLDER = $pwd.path+"\Export\$UCSMVIPFQDN"
+If (Test-Path $CSRFOLDER){
+	Write-Host "CSR Export Folder Created. Continuing..."
+}Else{
+	New-Item $CSRFOLDER -type directory
+}
+#Specify Log File
+$CSRFILEPATH = $CSRFOLDER+"\$CSRFILENAME"
+$REQ | Out-File -FilePath $CSRFILEPATH
 Write-Host "Completed exporting CSR to File for use with a Certificate Authority"
+Write-Host "File Path: 
+$CSRFILEPATH"
+
 Write-Host (Get-Date -format "MMM-dd-yyyy_HH-mm-ss")
 Write-Host "-----------------------------------------------------------------------------------------------------------------------"
 
